@@ -32,8 +32,8 @@ balance(Supervisor, BalancerName, MinAliveRatio) ->
 balance(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay) ->
     revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay).
 
-pid(ServerName) ->
-    gen_server:call(ServerName, pid).
+pid(PoolName) ->
+    gen_server:call(revolver_utils:revolver_name(PoolName), pid).
 
 map(ServerName, Fun) ->
     gen_server:call(ServerName, {map, Fun}).

@@ -1,5 +1,7 @@
 -module(revolver_utils).
 
+-compile([export_all]).
+
 -export([monitor/1, child_pids/1]).
 
 monitor(Pid) ->
@@ -21,4 +23,12 @@ alive(Supervisor) when is_atom(Supervisor) ->
 alive(Supervisor) when is_pid(Supervisor) ->
     erlang:is_process_alive(Supervisor).
 
+supervisor_name(Name) ->
+    postfix_atom(Name, "_revolver_sub").
+
+revolver_name(Name) ->
+    postfix_atom(Name, "_revolver").
+
+postfix_atom(Name, Postfix) ->
+    list_to_atom(atom_to_list(Name) ++ Postfix).
 

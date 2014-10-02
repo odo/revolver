@@ -127,6 +127,18 @@ revolver: Found 2 new processes of 2 total for sasl_sup, connected.
 <0.58.0>
 ```
 
+## integrating into applications
+
+In order to integrate into a supervision tree you can get the child spec from `revolver_sup`:
+
+```erlang
+1> ChildSpec = revolver_sup:child_spec(target_supervisor, pool_name, 1.0, 1000).
+{pool_name_revolver_sub,{revolver_sup,start_link,
+                                      [target_supervisor,pool_name,1.0,1000]},
+                        permanent,1000,supervisor,
+                        [revolver_sup,revolver]}
+2> supervisor:start_child(existing_supervisor, ChildSpec).
+```
 
 
 # Tests
