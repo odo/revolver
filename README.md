@@ -9,7 +9,7 @@ The idea is that you have an existing OTP supervisor with children (your pool) a
 This design makes it perfect for the fast paralellization of many equally sized tasks.
 
 In addition, revolver has the notion of beeing disconnected.
-So when parts of you application are temporarily unavailable (think database connections),
+So when parts of your application are temporarily unavailable (think database connections),
 revolver acts as a fuse and lets the unaffected parts run while trying to reconnect.
 
 ## Building
