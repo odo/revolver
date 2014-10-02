@@ -29,7 +29,7 @@ On modern hardware, revolver can hand out more than 100 000 pids per second. So 
 ### balancing
 
 The idea is to balance accross processes owned by a supervisor. In this example we use the sasl supervisor (```sasl_sup```) which has two sub-processes.
-In a typical setting, you would balance between a large set of identical gen_server processes.
+In a typical setting, you would balance across a large set of identical gen_server processes.
 
 ```erlang
 1> application:start(sasl).
@@ -47,10 +47,10 @@ ok
 ```
 ### refreshing the pool
 
-Members of the pool may die and revolver will notice and take them out of the rotation.
+Members of the pool may die and revolver will notice and take them out of rotation.
 Eventually it will need to ask the supervisor again for its children.
 When this happens is specified by the ratio of workers you need to have active.
-The default is 1.0 (all of them) but if you have many workers and expect them to die frequently you might want to specify a smaller ration:
+The default is 1.0 (all of them) but if you have many workers and expect them to die frequently you might want to specify a smaller ratio:
 
 ```erlang
 revolver:balance(sasl_sup, sasl_pool2, 0.75).
@@ -71,7 +71,7 @@ ok
 
 ## disconnect and reconnect
 
-If the pool disappears (the supervisor exits or has no children) revolver returns {error, disconnected} when asked for a pid
+If the pool disappears (the supervisor exits or has no children) revolver returns `{error, disconnected}` when asked for a pid
 and tries to refresh the pool periodically in the background. The delay for the refresh can be specified at start.
 
 ```erlang
@@ -94,6 +94,11 @@ Everything fine so far. Now we stop sasl (the pool):
 ok
 
 =INFO REPORT==== 2-Oct-2014::09:55:53 ===
+    application: sasl
+    exited: stopped
+    type: temporary
+
+=INFO REPORT==== 2-Oct-2014::09:55:53 ===
 revolver: The process <0.41.0> (child of sasl_sup) died.
 
 =ERROR REPORT==== 2-Oct-2014::09:55:53 ===
@@ -103,12 +108,8 @@ revolver: Reloading children from supervisor sasl_sup.
 revolver_utils: Supervisor sasl_sup not running, disconnected.
 
 =ERROR REPORT==== 2-Oct-2014::09:55:53 ===
-revolver trying to reconnecty in 10000 ms.
+revolver trying to reconnect in 10000 ms.
 
-=INFO REPORT==== 2-Oct-2014::09:55:53 ===
-    application: sasl
-    exited: stopped
-    type: temporary
 5>  revolver:pid(sasl_pool).
 {error,disconnected}
 ```
