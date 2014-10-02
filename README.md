@@ -1,3 +1,4 @@
+[![Build Status](http://img.shields.io/travis/odo/revolver.svg?style=flat-square)](https://travis-ci.org/odo/revolver)
 # revolver
 
 revolver is a round-robin load balancer for Erlang processes.
