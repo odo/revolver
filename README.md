@@ -16,7 +16,12 @@ In addition, revolver has the notion of beeing disconnected.
 So when parts of your application are temporarily unavailable (think database connections),
 revolver acts as a fuse and lets the unaffected parts run while trying to reconnect.
 
-## Building
+## palma
+
+If you are looking for an application to dynamically create pools for balancing with revolver, check out
+[palma](https://github.com/odo/palma).
+
+## building revolver
 
 ```
 git clone git://github.com/odo/revolver.git
@@ -24,11 +29,11 @@ cd revolver
 ./rebar get-deps compile
 ```
 
-## Performance
+## performance
 
 On modern hardware, revolver can hand out more than 100 000 pids per second. So it will add an overhead < 10 microseconds to each call.
 
-## Usage
+## usage
 
 ### balancing
 
@@ -145,6 +150,6 @@ In order to integrate into a supervision tree you can get the child spec from `r
 ```
 
 
-# Tests
+# tests
 
 ```./rebar eunit skip_deps=true```
