@@ -1,0 +1,12 @@
+{application, revolver,
+ [
+  {description, ""},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { revolver_app, []}},
+  {env, []}
+ ]}.

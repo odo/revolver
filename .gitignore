@@ -1,0 +1,5 @@
+.eunit
+deps
+ebin
+src/tags
+test/tags
