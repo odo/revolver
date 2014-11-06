@@ -136,6 +136,16 @@ revolver: Found 2 new processes of 2 total for sasl_sup, connected.
 <0.58.0>
 ```
 
+If at some point you like revolver to pick up new processes in the pool
+you can tell it specifically to connect/rescan:
+
+```erlang
+8> revolver:connect(sasl_pool).
+ok
+=INFO REPORT==== 6-Nov-2014::09:21:29 ===
+revolver: Found 0 new processes of 2 total for sasl_sup, connected.
+```
+
 ## integrating into applications
 
 In order to integrate into a supervision tree you can get the child spec from `revolver_sup`:

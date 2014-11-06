@@ -3,7 +3,7 @@
 -behaviour (gen_server).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([balance/2, balance/3, balance/4, map/2, start_link/4, pid/1]).
+-export([balance/2, balance/3, balance/4, map/2, start_link/4, pid/1, connect/1]).
 
 -define(DEFAULTMINALIVERATIO, 1.0).
 -define(DEFAULRECONNECTDELAY, 1000). % ms
@@ -38,6 +38,10 @@ pid(PoolName) ->
 map(ServerName, Fun) ->
     gen_server:call(ServerName, {map, Fun}).
 
+connect(PoolName) ->
+    revolver_utils:revolver_name(PoolName) ! connect,
+    ok.
+
 init({Supervisor, MinAliveRatio, ReconnectDelay}) ->
     PidTable = ets:new(pid_table, [private, duplicate_bag]),
 
@@ -68,7 +72,7 @@ handle_call(pid, _From, State = #state{last_pid = LastPid, pid_table = PidTable}
 handle_call({map, Fun}, _From, State = #state{pid_table = PidTable}) ->
     % we are reconnecting here to make sure we
     % have an up to date version of the pids
-    StateNew = connect(State),
+    StateNew = connect_internal(State),
     Pids     = ets:foldl(fun({Pid, _}, Acc) -> [Pid|Acc] end, [], PidTable),
     Reply    = lists:map(Fun, Pids),
     {reply, Reply, StateNew}.
@@ -78,7 +82,7 @@ handle_cast(_, State) ->
     {noreply, State}.
 
 handle_info(connect, State) ->
-    {noreply, connect(State)};
+    {noreply, connect_internal(State)};
 
 handle_info({'DOWN', _, _, Pid, _}, State = #state{supervisor = Supervisor, pid_table = PidTable, pids_count_original = PidsCountOriginal, min_alive_ratio = MinAliveRatio}) ->
     error_logger:info_msg("~p: The process ~p (child of ~p) died.\n", [?MODULE, Pid, Supervisor]),
@@ -87,7 +91,7 @@ handle_info({'DOWN', _, _, Pid, _}, State = #state{supervisor = Supervisor, pid_
     case too_few_pids(PidTable, PidsCountOriginal, MinAliveRatio) of
         true ->
             error_logger:warning_msg("~p: Reloading children from supervisor ~p.\n", [?MODULE, Supervisor]),
-            connect(State);
+            connect_internal(State);
         false ->
             State
     end,
@@ -100,7 +104,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 too_few_pids(PidTable, PidsCountOriginal, MinAliveRatio) ->
     table_size(PidTable) / PidsCountOriginal < MinAliveRatio.
 
-connect(State = #state{ supervisor = Supervisor, pid_table = PidTable, reconnect_delay = ReconnectDelay }) ->
+connect_internal(State = #state{ supervisor = Supervisor, pid_table = PidTable, reconnect_delay = ReconnectDelay }) ->
     case revolver_utils:child_pids(Supervisor) of
         {error, supervisor_not_running} ->
             ets:delete_all_objects(PidTable),
@@ -134,3 +138,4 @@ schedule_reconnect(Delay) ->
 table_size(Table) ->
         {size, Count} = proplists:lookup(size, ets:info(Table)),
         Count.
+
