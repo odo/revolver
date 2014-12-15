@@ -123,9 +123,6 @@ connect_internal(State = #state{ supervisor = Supervisor, pid_table = PidTable, 
                     schedule_reconnect(ReconnectDelay),
                     StateNew#state{ connected = false };
                 _ ->
-                    error_logger:info_msg(
-                        "~p: Found ~p new processes of ~p total for ~p, connected.\n",
-                        [?MODULE, length(PidsNew), length(Pids), Supervisor]),
                     StateNew#state{ connected = true }
             end
     end.
