@@ -39,8 +39,7 @@ map(ServerName, Fun) ->
     gen_server:call(ServerName, {map, Fun}).
 
 connect(PoolName) ->
-    revolver_utils:revolver_name(PoolName) ! connect,
-    ok.
+    gen_server:call(revolver_utils:revolver_name(PoolName), connect).
 
 init({Supervisor, MinAliveRatio, ReconnectDelay}) ->
     PidTable = ets:new(pid_table, [private, duplicate_bag]),
@@ -75,7 +74,18 @@ handle_call({map, Fun}, _From, State = #state{pid_table = PidTable}) ->
     StateNew = connect_internal(State),
     Pids     = ets:foldl(fun({Pid, _}, Acc) -> [Pid|Acc] end, [], PidTable),
     Reply    = lists:map(Fun, Pids),
-    {reply, Reply, StateNew}.
+    {reply, Reply, StateNew};
+
+handle_call(connect, _From, State) ->
+    NewSate = connect_internal(State),
+    Reply =
+    case NewSate#state.connected of
+        true ->
+            ok;
+        false ->
+            {error, not_connected}
+    end,
+    {reply, Reply, NewSate}.
 
 handle_cast(_, State) ->
     throw("not implemented"),
