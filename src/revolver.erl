@@ -3,7 +3,7 @@
 -behaviour (gen_server).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([balance/2, balance/3, balance/4, map/2, start_link/4, pid/1, connect/1]).
+-export([balance/2, balance/3, balance/4, balance/5, map/2, start_link/4, start_link/5, pid/1, connect/1]).
 
 -define(DEFAULTMINALIVERATIO, 1.0).
 -define(DEFAULRECONNECTDELAY, 1000). % ms
@@ -21,16 +21,21 @@
     }).
 
 start_link(Supervisor, ServerName, MinAliveRatio, ReconnectDelay) ->
-    gen_server:start_link({local, ServerName}, ?MODULE, {Supervisor, MinAliveRatio, ReconnectDelay}, []).
+  start_link(Supervisor, ServerName, MinAliveRatio, ReconnectDelay, true).
+start_link(Supervisor, ServerName, MinAliveRatio, ReconnectDelay, ConnectAtStart) ->
+    gen_server:start_link({local, ServerName}, ?MODULE, {Supervisor, MinAliveRatio, ReconnectDelay, ConnectAtStart}, []).
 
 balance(Supervisor, BalancerName) ->
-    revolver_sup:start_link(Supervisor, BalancerName, ?DEFAULTMINALIVERATIO, ?DEFAULRECONNECTDELAY).
+    revolver_sup:start_link(Supervisor, BalancerName, ?DEFAULTMINALIVERATIO, ?DEFAULRECONNECTDELAY, false).
 
 balance(Supervisor, BalancerName, MinAliveRatio) ->
-    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ?DEFAULRECONNECTDELAY).
+    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ?DEFAULRECONNECTDELAY, false).
 
 balance(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay) ->
-    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay).
+    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay, false).
+
+balance(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay, ConnectAtStart) ->
+    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay, ConnectAtStart).
 
 pid(PoolName) ->
     gen_server:call(revolver_utils:revolver_name(PoolName), pid).
