@@ -31,13 +31,13 @@ test_balance() ->
     {ok, StateInit}        = revolver:init({supervisor, 0.75, 1000}),
     {noreply, ReadyState}  = revolver:handle_info(connect, StateInit),
     {reply, Pid1, State1}  = revolver:handle_call(pid, me, ReadyState),
-    ?assertEqual(1, Pid1),
+    ?assertEqual(3, Pid1),
     {reply, Pid2, State2}  = revolver:handle_call(pid, me, State1),
-    ?assertEqual(2, Pid2),
+    ?assertEqual(1, Pid2),
     {reply, Pid3, State3}  = revolver:handle_call(pid, me, State2),
-    ?assertEqual(3, Pid3),
+    ?assertEqual(2, Pid3),
     {reply, Pid4, _State4} = revolver:handle_call(pid, me, State3),
-    ?assertEqual(1, Pid4).
+    ?assertEqual(3, Pid4).
 
 test_map() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),
@@ -62,7 +62,7 @@ test_no_children() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2] end),
     {ok, StateInit}       = revolver:init({supervisor, 0.75, 1000}),
     {noreply, StateReady} = revolver:handle_info(connect, StateInit),
-    {reply, 2, _}         = revolver:handle_call(pid, me, StateReady),
+    {reply, 1, _}         = revolver:handle_call(pid, me, StateReady),
     meck:expect(revolver_utils, child_pids, fun(_) -> [] end),
     {noreply, StateDown1} = revolver:handle_info({'DOWN', x, x, 1, x}, StateReady),
     {reply, 2, _}         = revolver:handle_call(pid, me, StateDown1),
@@ -100,4 +100,3 @@ test_exit() ->
     ?assertEqual(1, Pid5).
 
 -endif.
-

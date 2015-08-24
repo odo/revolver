@@ -42,6 +42,8 @@ connect(PoolName) ->
     gen_server:call(revolver_utils:revolver_name(PoolName), connect).
 
 init({Supervisor, MinAliveRatio, ReconnectDelay}) ->
+  init({Supervisor, MinAliveRatio, ReconnectDelay, true});
+init({Supervisor, MinAliveRatio, ReconnectDelay, ConnectAtStart}) ->
     PidTable = ets:new(pid_table, [private, duplicate_bag]),
 
     State = #state{
@@ -53,9 +55,13 @@ init({Supervisor, MinAliveRatio, ReconnectDelay}) ->
         last_pid            = undefined,
         reconnect_delay     = ReconnectDelay
     },
-
-    self() ! connect,
+    maybe_connect(ConnectAtStart),
     {ok, State}.
+
+maybe_connect(true) ->
+  self() ! connect;
+maybe_connect(_) ->
+  noop.
 
 handle_call(pid, _From, State = #state{connected = false}) ->
     {reply, {error, disconnected}, State};
@@ -145,4 +151,3 @@ schedule_reconnect(Delay) ->
 table_size(Table) ->
         {size, Count} = proplists:lookup(size, ets:info(Table)),
         Count.
-
