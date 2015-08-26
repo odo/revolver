@@ -26,13 +26,13 @@ start_link(Supervisor, ServerName, MinAliveRatio, ReconnectDelay, ConnectAtStart
     gen_server:start_link({local, ServerName}, ?MODULE, {Supervisor, MinAliveRatio, ReconnectDelay, ConnectAtStart}, []).
 
 balance(Supervisor, BalancerName) ->
-    revolver_sup:start_link(Supervisor, BalancerName, ?DEFAULTMINALIVERATIO, ?DEFAULRECONNECTDELAY, false).
+    revolver_sup:start_link(Supervisor, BalancerName, ?DEFAULTMINALIVERATIO, ?DEFAULRECONNECTDELAY, true).
 
 balance(Supervisor, BalancerName, MinAliveRatio) ->
-    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ?DEFAULRECONNECTDELAY, false).
+    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ?DEFAULRECONNECTDELAY, true).
 
 balance(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay) ->
-    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay, false).
+    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay, true).
 
 balance(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay, ConnectAtStart) ->
     revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay, ConnectAtStart).
