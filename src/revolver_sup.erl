@@ -21,7 +21,7 @@ child_spec(Supervisor, PoolName, MinAliveRatio, ReconnectDelay, ConnectAtStart) 
 start_link(Supervisor, PoolName, MinAliveRatio, ReconnectDelay) ->
   start_link(Supervisor, PoolName, MinAliveRatio, ReconnectDelay, true).
 start_link(Supervisor, PoolName, MinAliveRatio, ReconnectDelay, ConnectAtStart) ->
-    supervisor:start_link({local, revolver_utils:supervisor_name(PoolName)}, ?MODULE, {Supervisor, revolver_utils:revolver_name(PoolName), MinAliveRatio, ReconnectDelay, ConnectAtStart}).
+    supervisor:start_link({local, revolver_utils:supervisor_name(PoolName)}, ?MODULE, {Supervisor, PoolName, MinAliveRatio, ReconnectDelay, ConnectAtStart}).
 
 init({Supervisor, ServerName, MinAliveRatio, ReconnectDelay, ConnectAtStart}) ->
     Server = {

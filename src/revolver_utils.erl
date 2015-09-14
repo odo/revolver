@@ -26,9 +26,5 @@ alive(Supervisor) when is_pid(Supervisor) ->
 supervisor_name(Name) ->
     postfix_atom(Name, "_revolver_sub").
 
-revolver_name(Name) ->
-    postfix_atom(Name, "_revolver").
-
 postfix_atom(Name, Postfix) ->
     list_to_atom(atom_to_list(Name) ++ Postfix).
-
