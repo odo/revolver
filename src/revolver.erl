@@ -3,10 +3,11 @@
 -behaviour (gen_server).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([balance/2, balance/3, balance/4, balance/5, map/2, start_link/4, start_link/5, pid/1, connect/1]).
+-export([balance/2, balance/3, map/2, start_link/3, pid/1, connect/1]).
 
--define(DEFAULTMINALIVERATIO, 1.0).
--define(DEFAULRECONNECTDELAY, 1000). % ms
+-define(DEFAULTMINALIVERATIO,  1.0).
+-define(DEFAULRECONNECTDELAY,  1000). % ms
+-define(DEFAULTCONNECTATSTART, true). % ms
 
 -type sup_ref()  :: {atom(), atom()}.
 
@@ -20,22 +21,14 @@
     reconnect_delay :: integer()
     }).
 
-start_link(Supervisor, ServerName, MinAliveRatio, ReconnectDelay) ->
-  start_link(Supervisor, ServerName, MinAliveRatio, ReconnectDelay, true).
-start_link(Supervisor, ServerName, MinAliveRatio, ReconnectDelay, ConnectAtStart) ->
-    gen_server:start_link({local, ServerName}, ?MODULE, {Supervisor, MinAliveRatio, ReconnectDelay, ConnectAtStart}, []).
+start_link(Supervisor, ServerName, Options) when is_map(Options) ->
+    gen_server:start_link({local, ServerName}, ?MODULE, {Supervisor, Options}, []).
 
 balance(Supervisor, BalancerName) ->
-    revolver_sup:start_link(Supervisor, BalancerName, ?DEFAULTMINALIVERATIO, ?DEFAULRECONNECTDELAY, true).
+    revolver_sup:start_link(Supervisor, BalancerName, #{}).
 
-balance(Supervisor, BalancerName, MinAliveRatio) ->
-    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ?DEFAULRECONNECTDELAY, true).
-
-balance(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay) ->
-    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay, true).
-
-balance(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay, ConnectAtStart) ->
-    revolver_sup:start_link(Supervisor, BalancerName, MinAliveRatio, ReconnectDelay, ConnectAtStart).
+balance(Supervisor, BalancerName, Options) ->
+    revolver_sup:start_link(Supervisor, BalancerName, Options).
 
 pid(PoolName) ->
     gen_server:call(PoolName, pid).
@@ -46,9 +39,11 @@ map(ServerName, Fun) ->
 connect(PoolName) ->
     gen_server:call(PoolName, connect).
 
-init({Supervisor, MinAliveRatio, ReconnectDelay}) ->
-  init({Supervisor, MinAliveRatio, ReconnectDelay, true});
-init({Supervisor, MinAliveRatio, ReconnectDelay, ConnectAtStart}) ->
+init({Supervisor, Options}) ->
+    MinAliveRatio  = maps:get(min_alive_ratio,  Options, ?DEFAULTMINALIVERATIO),
+    ReconnectDelay = maps:get(reconnect_delay,  Options, ?DEFAULRECONNECTDELAY),
+    ConnectAtStart = maps:get(connect_at_start, Options, ?DEFAULTCONNECTATSTART),
+
     PidTable = ets:new(pid_table, [private, duplicate_bag]),
 
     State = #state{

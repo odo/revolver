@@ -26,9 +26,12 @@ test_setup() ->
 test_teardown(_) ->
     meck:unload(revolver_utils).
 
+default_options() ->
+  #{ min_alive_ratio => 0.75, reconnect_delay => 1000}.
+
 test_balance() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),
-    {ok, StateInit}        = revolver:init({supervisor, 0.75, 1000}),
+    {ok, StateInit}        = revolver:init({supervisor, default_options()}),
     {noreply, ReadyState}  = revolver:handle_info(connect, StateInit),
     {reply, Pid1, State1}  = revolver:handle_call(pid, me, ReadyState),
     ?assertEqual(3, Pid1),
@@ -41,26 +44,26 @@ test_balance() ->
 
 test_map() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),
-    {ok, StateInit} = revolver:init({supervisor, 0.75, 1000}),
+    {ok, StateInit} = revolver:init({supervisor, default_options()}),
     {reply, Reply, _} = revolver:handle_call({map, fun(Pid) -> Pid * 2 end}, x, StateInit),
     ?assertEqual([2, 4, 6], lists:sort(Reply)).
 
 test_no_supervisor_init() ->
-    {ok, StateInit}        = revolver:init({supervisor, 0.75, 1000}),
+    {ok, StateInit}        = revolver:init({supervisor, default_options()}),
     {noreply, ReadyState}  = revolver:handle_info(connect, StateInit),
     {reply, Reply, _}      = revolver:handle_call(pid, me, ReadyState),
     ?assertEqual({error, disconnected}, Reply).
 
 test_no_children_init() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [] end),
-    {ok, StateInit}        = revolver:init({supervisor, 0.75, 1000}),
+    {ok, StateInit}        = revolver:init({supervisor, default_options()}),
     {noreply, ReadyState}  = revolver:handle_info(connect, StateInit),
     {reply, Reply, _}      = revolver:handle_call(pid, me, ReadyState),
     ?assertEqual({error, disconnected}, Reply).
 
 test_no_children() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2] end),
-    {ok, StateInit}       = revolver:init({supervisor, 0.75, 1000}),
+    {ok, StateInit}       = revolver:init({supervisor, default_options()}),
     {noreply, StateReady} = revolver:handle_info(connect, StateInit),
     {reply, 1, _}         = revolver:handle_call(pid, me, StateReady),
     meck:expect(revolver_utils, child_pids, fun(_) -> [] end),
@@ -72,7 +75,7 @@ test_no_children() ->
 
 test_no_supervisor() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2] end),
-    {ok, StateInit}       = revolver:init({supervisor, 0.75, 1000}),
+    {ok, StateInit}       = revolver:init({supervisor, default_options()}),
     {noreply, StateReady} = revolver:handle_info(connect, StateInit),
     meck:expect(revolver_utils, child_pids, fun(Arg) -> revolver_utils_meck_original:child_pids(Arg) end),
     {noreply, StateDown1}  = revolver:handle_info({'DOWN', x, x, 1, x}, StateReady),
@@ -82,7 +85,7 @@ test_no_supervisor() ->
 
 test_exit() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),
-    {ok, StateInit}       = revolver:init({supervisor, 0.75, 1000}),
+    {ok, StateInit}       = revolver:init({supervisor, default_options()}),
     {noreply, StateReady} = revolver:handle_info(connect, StateInit),
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 3] end),
     {noreply, StateDown}   = revolver:handle_info({'DOWN', x, x, 2, x}, StateReady),
