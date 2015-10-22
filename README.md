@@ -54,6 +54,27 @@ ok
 6> revolver:pid(sasl_pool).
 <0.37.0>
 ```
+
+
+### options
+
+you can start revolver with additional options: 
+
+```erlang
+Options = #{
+	min_alive_ratio          => 0.75,
+	reconnect_delay          => 1000,
+	max_message_queue_length => 10,
+	connect_at_start         => false
+}
+revolver:balance(sasl_sup, sasl_pool, Options).
+```
+
+`min_alive_ratio`: If this portion of the workers are dead, a reload is triggered (default 1.0)
+`reconnect_delay`: when disconnected, the wait time between connection attempts (default 1000 ms)
+`max_message_queue_length`: maximum number of messages allowed for each workers before revolver:pid/1 returns `{error, overload}` (default `undefined`)
+`connect_at_start`: if you set up the workers after starting revolver, you can set this to false and then connect manually (default true)
+
 ### refreshing the pool
 
 Members of the pool may die and revolver will notice and take them out of rotation.
@@ -62,7 +83,7 @@ When this happens is specified by the ratio of workers you need to have active.
 The default is 1.0 (all of them) but if you have many workers and expect them to die frequently you might want to specify a smaller ratio:
 
 ```erlang
-revolver:balance(sasl_sup, sasl_pool2, 0.75).
+revolver:balance(sasl_sup, sasl_pool2, #{ min_alive_ratio => 0.75 }).
 ```
 
 ## calling all members
