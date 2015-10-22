@@ -67,16 +67,17 @@ maybe_connect(true) ->
 maybe_connect(_) ->
   noop.
 
+% revolver is disconnected
 handle_call(pid, _From, State = #state{connected = false}) ->
     {reply, {error, disconnected}, State};
+% no limit on the message queue is defined
 handle_call(pid, _From, State = #state{last_pid = LastPid, pid_table = PidTable, max_message_queue_length = undefined}) ->
-    Pid = case ets:next(PidTable, LastPid) of
-        '$end_of_table' ->
-            ets:first(PidTable);
-        Value ->
-            Value
-    end,
+    Pid = next_pid(PidTable, LastPid),
     {reply, Pid, State#state{last_pid = Pid}};
+% message queue length is limited
+handle_call(pid, _From, State = #state{last_pid = LastPid, pid_table = PidTable, max_message_queue_length = MaxMessageQueueLength}) ->
+    {Pid, NextLastPid} = first_available(PidTable, LastPid, MaxMessageQueueLength),
+    {reply, Pid, State#state{last_pid = NextLastPid}};
 
 handle_call({map, Fun}, _From, State = #state{pid_table = PidTable}) ->
     % we are reconnecting here to make sure we
@@ -120,6 +121,38 @@ handle_info({'DOWN', _, _, Pid, _}, State = #state{supervisor = Supervisor, pid_
 terminate(_Reason, _State) -> ok.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+next_pid(PidTable, LastPid) ->
+    case ets:next(PidTable, LastPid) of
+        '$end_of_table' ->
+            ets:first(PidTable);
+        Value ->
+            Value
+    end.
+
+first_available(PidTable, LastPid, MaxMessageQueueLength) ->
+    first_available(PidTable, next_pid(PidTable, LastPid), LastPid, MaxMessageQueueLength).
+% we arrived at the first pid (or we have only one in total)
+% so we check one last time before we return overload
+first_available(_, StartingPid, StartingPid, MaxMessageQueueLength) ->
+    case overloaded(StartingPid, MaxMessageQueueLength) of
+        false ->
+            {StartingPid, StartingPid};
+        true  ->
+            {{error, overload}, StartingPid}
+    end;
+% new pid candidate: check message queue
+% and maybe recurse
+first_available(PidTable, NextPid, StartingPid, MaxMessageQueueLength) ->
+    case overloaded(NextPid, MaxMessageQueueLength) of
+        false ->
+            {NextPid, NextPid};
+        true  ->
+            first_available(PidTable, next_pid(PidTable, NextPid), StartingPid, MaxMessageQueueLength)
+    end.
+
+overloaded(Pid, MaxMessageQueueLength) ->
+    revolver_utils:message_queue_len(Pid) > MaxMessageQueueLength.
 
 too_few_pids(PidTable, PidsCountOriginal, MinAliveRatio) ->
     table_size(PidTable) / PidsCountOriginal < MinAliveRatio.

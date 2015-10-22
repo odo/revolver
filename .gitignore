@@ -3,3 +3,4 @@ deps
 ebin
 src/tags
 test/tags
+.rebar

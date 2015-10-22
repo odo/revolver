@@ -9,6 +9,10 @@ revolver_test_() ->
       fun test_teardown/1,
       [
         fun test_balance/0,
+        fun test_balance_with_queue_limit_no_overload/0,
+        fun test_balance_with_queue_limit_no_overload_one_pid/0,
+        fun test_balance_with_queue_limit_one_overload/0,
+        fun test_balance_with_queue_limit_all_overload/0,
         fun test_no_supervisor_init/0,
         fun test_no_children_init/0,
         fun test_no_children/0,
@@ -41,6 +45,57 @@ test_balance() ->
     ?assertEqual(2, Pid3),
     {reply, Pid4, _State4} = revolver:handle_call(pid, me, State3),
     ?assertEqual(3, Pid4).
+
+test_balance_with_queue_limit_no_overload() ->
+    Options = #{ max_message_queue_length => 10 },
+    meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),
+    meck:expect(revolver_utils, message_queue_len, fun(_) -> 0 end),
+    {ok, StateInit} = revolver:init({supervisor, Options}),
+    {noreply, ReadyState}  = revolver:handle_info(connect, StateInit),
+    {reply, Pid1, State1}  = revolver:handle_call(pid, me, ReadyState),
+    ?assertEqual(3, Pid1),
+    {reply, Pid2, State2}  = revolver:handle_call(pid, me, State1),
+    ?assertEqual(1, Pid2),
+    {reply, Pid3, State3}  = revolver:handle_call(pid, me, State2),
+    ?assertEqual(2, Pid3),
+    {reply, Pid4, State4} = revolver:handle_call(pid, me, State3),
+    ?assertEqual(3, Pid4).
+
+test_balance_with_queue_limit_no_overload_one_pid() ->
+    Options = #{ max_message_queue_length => 10 },
+    meck:expect(revolver_utils, child_pids, fun(_) -> [1] end),
+    meck:expect(revolver_utils, message_queue_len, fun(_) -> 0 end),
+    {ok, StateInit} = revolver:init({supervisor, Options}),
+    {noreply, ReadyState}  = revolver:handle_info(connect, StateInit),
+    {reply, Pid1, State1}  = revolver:handle_call(pid, me, ReadyState),
+    ?assertEqual(1, Pid1),
+    {reply, Pid2, State2}  = revolver:handle_call(pid, me, State1),
+    ?assertEqual(1, Pid2).
+
+
+test_balance_with_queue_limit_one_overload() ->
+    Options = #{ max_message_queue_length => 10 },
+    meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),
+    meck:expect(revolver_utils, message_queue_len, fun(1) -> 100; (_) ->0 end),
+    {ok, StateInit} = revolver:init({supervisor, Options}),
+    {noreply, ReadyState}  = revolver:handle_info(connect, StateInit),
+    {reply, Pid1, State1}  = revolver:handle_call(pid, me, ReadyState),
+    ?assertEqual(3, Pid1),
+    {reply, Pid2, State2}  = revolver:handle_call(pid, me, State1),
+    ?assertEqual(2, Pid2),
+    {reply, Pid3, State3} = revolver:handle_call(pid, me, State2),
+    ?assertEqual(3, Pid3).
+
+test_balance_with_queue_limit_all_overload() ->
+    Options = #{ max_message_queue_length => 10 },
+    meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),
+    meck:expect(revolver_utils, message_queue_len, fun(_) -> 100 end),
+    {ok, StateInit} = revolver:init({supervisor, Options}),
+    {noreply, ReadyState}  = revolver:handle_info(connect, StateInit),
+    {reply, Error1, State1}  = revolver:handle_call(pid, me, ReadyState),
+    ?assertEqual({error, overload}, Error1),
+    {reply, Error2, State2}  = revolver:handle_call(pid, me, State1),
+    ?assertEqual({error, overload}, Error2).
 
 test_map() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),

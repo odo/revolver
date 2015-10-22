@@ -16,6 +16,10 @@ child_pids(Supervisor) ->
             [ Pid || {_, Pid, _, _} <- supervisor:which_children(Supervisor), is_pid(Pid)]
     end.
 
+message_queue_len(Pid) ->
+    {message_queue_len, N} = process_info(Pid, message_queue_len),
+    N.
+
 alive(undefined) ->
     false;
 alive(Supervisor) when is_atom(Supervisor) ->
