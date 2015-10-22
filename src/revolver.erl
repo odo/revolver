@@ -7,7 +7,8 @@
 
 -define(DEFAULTMINALIVERATIO,  1.0).
 -define(DEFAULRECONNECTDELAY,  1000). % ms
--define(DEFAULTCONNECTATSTART, true). % ms
+-define(DEFAULTCONNECTATSTART, true).
+-define(DEFAULTMAXMESSAGEQUEUELENGTH, undefined).
 
 -type sup_ref()  :: {atom(), atom()}.
 
@@ -18,7 +19,8 @@
     last_pid :: pid(),
     pids_count_original :: integer(),
     min_alive_ratio :: float(),
-    reconnect_delay :: integer()
+    reconnect_delay :: integer(),
+    max_message_queue_length :: integer() | undefined
     }).
 
 start_link(Supervisor, ServerName, Options) when is_map(Options) ->
@@ -40,20 +42,22 @@ connect(PoolName) ->
     gen_server:call(PoolName, connect).
 
 init({Supervisor, Options}) ->
-    MinAliveRatio  = maps:get(min_alive_ratio,  Options, ?DEFAULTMINALIVERATIO),
-    ReconnectDelay = maps:get(reconnect_delay,  Options, ?DEFAULRECONNECTDELAY),
-    ConnectAtStart = maps:get(connect_at_start, Options, ?DEFAULTCONNECTATSTART),
+    MinAliveRatio         = maps:get(min_alive_ratio,  Options, ?DEFAULTMINALIVERATIO),
+    ReconnectDelay        = maps:get(reconnect_delay,  Options, ?DEFAULRECONNECTDELAY),
+    ConnectAtStart        = maps:get(connect_at_start, Options, ?DEFAULTCONNECTATSTART),
+    MaxMessageQueueLength = maps:get(max_message_queue_length, Options, ?DEFAULTMAXMESSAGEQUEUELENGTH),
 
     PidTable = ets:new(pid_table, [private, duplicate_bag]),
 
     State = #state{
-        connected           = false,
-        supervisor          = Supervisor,
-        pids_count_original = undefined,
-        min_alive_ratio     = MinAliveRatio,
-        pid_table           = PidTable,
-        last_pid            = undefined,
-        reconnect_delay     = ReconnectDelay
+        connected                = false,
+        supervisor               = Supervisor,
+        pids_count_original      = undefined,
+        min_alive_ratio          = MinAliveRatio,
+        pid_table                = PidTable,
+        last_pid                 = undefined,
+        reconnect_delay          = ReconnectDelay,
+        max_message_queue_length = MaxMessageQueueLength
     },
     maybe_connect(ConnectAtStart),
     {ok, State}.
@@ -65,7 +69,7 @@ maybe_connect(_) ->
 
 handle_call(pid, _From, State = #state{connected = false}) ->
     {reply, {error, disconnected}, State};
-handle_call(pid, _From, State = #state{last_pid = LastPid, pid_table = PidTable}) ->
+handle_call(pid, _From, State = #state{last_pid = LastPid, pid_table = PidTable, max_message_queue_length = undefined}) ->
     Pid = case ets:next(PidTable, LastPid) of
         '$end_of_table' ->
             ets:first(PidTable);
