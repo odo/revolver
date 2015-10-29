@@ -17,8 +17,12 @@ child_pids(Supervisor) ->
     end.
 
 message_queue_len(Pid) ->
-    {message_queue_len, N} = process_info(Pid, message_queue_len),
-    N.
+    case process_info(Pid, message_queue_len) of
+        undefined ->
+            0;
+        {message_queue_len, N} ->
+            N
+    end.
 
 alive(undefined) ->
     false;
