@@ -7,6 +7,5 @@
                   kernel,
                   stdlib
                  ]},
-  {mod, { revolver_app, []}},
   {env, []}
  ]}.
