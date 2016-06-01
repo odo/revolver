@@ -72,7 +72,7 @@ revolver:balance(sasl_sup, sasl_pool, Options).
 
 `min_alive_ratio`: If this portion of the workers are dead, a reload is triggered (default 1.0)
 `reconnect_delay`: when disconnected, the wait time between connection attempts (default 1000 ms)
-`max_message_queue_length`: maximum number of messages allowed for each workers before revolver:pid/1 returns `{error, overload}` (default `undefined`)
+`max_message_queue_length`: maximum number of messages allowed in the inbox of each worker before revolver:pid/1 returns `{error, overload}` (default `undefined`)
 `connect_at_start`: if you set up the workers after starting revolver, you can set this to false and then connect manually (default true)
 
 ### refreshing the pool
