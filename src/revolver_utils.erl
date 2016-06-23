@@ -1,8 +1,6 @@
 -module(revolver_utils).
 
--compile([export_all]).
-
--export([monitor/1, child_pids/1]).
+-export([monitor/1, child_pids/1, message_queue_len/1, supervisor_name/1]).
 
 monitor(Pid) ->
     erlang:monitor(process, Pid).
