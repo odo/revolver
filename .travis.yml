@@ -3,9 +3,6 @@ notifications:
   email:
     - odo@mac.com
 otp_release:
-  - 17.1
-  - 17.0
-  - R16B03-1
-  - R16B
+  - 19.3
 before_script: "./rebar get-deps compile"
 script: "./rebar eunit skip_deps=true"
