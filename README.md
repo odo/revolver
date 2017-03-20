@@ -9,10 +9,10 @@ revolver is a round-robin load balancer for Erlang processes.
 Compared to poolboy (https://github.com/devinus/poolboy) or worker_pool (https://github.com/inaka/worker_pool),
 revolver is very simple and small (~150 LOC) with no concept of a lease and no assumptions about the workers.
 
-The idea is that you have an existing OTP supervisor with children (your pool) and to balance accross those.
+The idea is that you have an existing OTP supervisor with children (your pool) and to balance across those.
 This design makes it perfect for the fast paralellization of many equally sized tasks.
 
-In addition, revolver has the notion of beeing disconnected.
+In addition, revolver has the notion of being disconnected.
 So when parts of your application are temporarily unavailable (think database connections),
 revolver acts as a fuse and lets the unaffected parts run while trying to reconnect.
 
