@@ -110,8 +110,12 @@ handle_call(lease, _From, State = #state{last_pid = LastPid, pid_table = PidTabl
   end;
 
 handle_call({release, Pid}, _From, State = #state{pid_table = PidTable, last_pid = LastPid, max_message_queue_length = lease}) ->
-  ets:delete(PidTable, {Pid, leased}),
-  ets:insert(PidTable, {{Pid, available}, undefined}),
+  case ets:lookup(PidTable, {Pid, leased}) of
+    [] -> noop;
+    _ ->
+      ets:delete(PidTable, {Pid, leased}),
+      ets:insert(PidTable, {{Pid, available}, undefined})
+  end,
   case LastPid of
     {Pid, leased} ->
       {reply, ok, State#state{last_pid = {Pid, available}}};
@@ -163,8 +167,7 @@ terminate(_Reason, _State) -> ok.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 delete_pid(PidTable, Pid, lease) ->
-    ets:delete(PidTable, {Pid, available}),
-    ets:delete(PidTable, {Pid, leased});
+    ets:match_delete(PidTable, {{Pid, '_'}, undefined});
 delete_pid(PidTable, Pid, _) ->
     ets:delete(PidTable, Pid).
 
