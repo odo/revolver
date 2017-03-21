@@ -10,18 +10,16 @@
 -define(DEFAULTCONNECTATSTART, true).
 -define(DEFAULTMAXMESSAGEQUEUELENGTH, undefined).
 
--type sup_ref()  :: {atom(), atom()}.
-
 -record(state, {
-    connected :: boolean(),
-    supervisor :: sup_ref(),
-    pid_table :: atom(),
-    last_pid :: pid(),
-    pids_count_original :: integer(),
-    min_alive_ratio :: float(),
-    reconnect_delay :: integer(),
-    max_message_queue_length :: integer() | undefined
-    }).
+    connected                :: boolean(),
+    supervisor               :: supervisor:sup_ref(),
+    pid_table                :: ets:tab(),
+    last_pid                 :: undefined | pid(),
+    pids_count_original      :: undefined | integer(),
+    min_alive_ratio          :: float(),
+    reconnect_delay          :: integer(),
+    max_message_queue_length :: undefined | integer()
+}).
 
 start_link(Supervisor, ServerName, Options) when is_map(Options) ->
     gen_server:start_link({local, ServerName}, ?MODULE, {Supervisor, Options}, []).
@@ -138,6 +136,7 @@ handle_call(connect, _From, State) ->
     end,
     {reply, Reply, NewSate}.
 
+-dialyzer({no_return, [handle_cast/2]}).
 handle_cast(_, State) ->
     throw("not implemented"),
     {noreply, State}.
