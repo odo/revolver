@@ -3,7 +3,7 @@
 -behaviour (gen_server).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([balance/2, balance/3, map/2, start_link/3, pid/1, connect/1]).
+-export([balance/2, balance/3, map/2, start_link/3, pid/1, connect/1, transaction/2]).
 
 -define(DEFAULTMINALIVERATIO,  1.0).
 -define(DEFAULRECONNECTDELAY,  1000). % ms
@@ -34,6 +34,22 @@ balance(Supervisor, BalancerName, Options) ->
 
 pid(PoolName) ->
     gen_server:call(PoolName, pid).
+
+transaction(PoolName, Fun) ->
+    case gen_server:call(PoolName, lease) of
+      {ok, Pid} ->
+        try
+          Reply = Fun(Pid),
+          ok = gen_server:call(PoolName, {release, Pid}),
+          Reply
+        catch
+          Class:Reason ->
+            ok = gen_server:call(PoolName, {release, Pid}),
+            erlang:raise(Class, Reason, erlang:get_stacktrace())
+          end;
+      {error, Error} ->
+        {error, Error}
+    end.
 
 map(ServerName, Fun) ->
     gen_server:call(ServerName, {map, Fun}).
@@ -75,15 +91,39 @@ handle_call(pid, _From, State = #state{last_pid = LastPid, pid_table = PidTable,
     Pid = next_pid(PidTable, LastPid),
     {reply, Pid, State#state{last_pid = Pid}};
 % message queue length is limited
-handle_call(pid, _From, State = #state{last_pid = LastPid, pid_table = PidTable, max_message_queue_length = MaxMessageQueueLength}) ->
+handle_call(pid, _From, State = #state{last_pid = LastPid, pid_table = PidTable, max_message_queue_length = MaxMessageQueueLength}) when is_integer(MaxMessageQueueLength) ->
     {Pid, NextLastPid} = first_available(PidTable, LastPid, MaxMessageQueueLength),
     {reply, Pid, State#state{last_pid = NextLastPid}};
+
+% revolver is disconnected
+handle_call(lease, _From, State = #state{connected = false}) ->
+    {reply, {error, disconnected}, State};
+% no limit on the message queue is defined
+handle_call(lease, _From, State = #state{last_pid = LastPid, pid_table = PidTable, max_message_queue_length = lease}) ->
+  case first_available(PidTable, LastPid, lease) of
+    {{error, Error}, NextLastPid} ->
+      {reply, {error, Error}, State#state{last_pid = NextLastPid}};
+    {{Pid, available}, _} ->
+      true = ets:delete(PidTable, {Pid, available}),
+      true = ets:insert(PidTable, {{Pid, leased}, undefined}),
+      {reply, {ok, Pid}, State#state{last_pid = {Pid, leased}}}
+  end;
+
+handle_call({release, Pid}, _From, State = #state{pid_table = PidTable, last_pid = LastPid, max_message_queue_length = lease}) ->
+  ets:delete(PidTable, {Pid, leased}),
+  ets:insert(PidTable, {{Pid, available}, undefined}),
+  case LastPid of
+    {Pid, leased} ->
+      {reply, ok, State#state{last_pid = {Pid, available}}};
+    _ ->
+      {reply, ok, State}
+  end;
 
 handle_call({map, Fun}, _From, State = #state{pid_table = PidTable}) ->
     % we are reconnecting here to make sure we
     % have an up to date version of the pids
     StateNew = connect_internal(State),
-    Pids     = ets:foldl(fun({Pid, _}, Acc) -> [Pid|Acc] end, [], PidTable),
+    Pids     = ets:foldl(fun(Value, Acc) -> [element(1, Value)|Acc] end, [], PidTable),
     Reply    = lists:map(Fun, Pids),
     {reply, Reply, StateNew};
 
@@ -134,30 +174,33 @@ first_available(PidTable, LastPid, MaxMessageQueueLength) ->
     first_available(PidTable, next_pid(PidTable, LastPid), LastPid, MaxMessageQueueLength).
 % we arrived at the first pid (or we have only one in total)
 % so we check one last time before we return overload
-first_available(_, StartingPid, StartingPid, MaxMessageQueueLength) ->
-    case overloaded(StartingPid, MaxMessageQueueLength) of
-        false ->
+first_available(_PidTable, StartingPid, StartingPid, MaxMessageQueueLength) ->
+    case available(StartingPid, MaxMessageQueueLength) of
+        true ->
             {StartingPid, StartingPid};
-        true  ->
+        false  ->
             {{error, overload}, StartingPid}
     end;
 % new pid candidate: check message queue
 % and maybe recurse
 first_available(PidTable, NextPid, StartingPid, MaxMessageQueueLength) ->
-    case overloaded(NextPid, MaxMessageQueueLength) of
-        false ->
+    case available(NextPid, MaxMessageQueueLength) of
+        true ->
             {NextPid, NextPid};
-        true  ->
+        false  ->
             first_available(PidTable, next_pid(PidTable, NextPid), StartingPid, MaxMessageQueueLength)
     end.
 
-overloaded(Pid, MaxMessageQueueLength) ->
-    revolver_utils:message_queue_len(Pid) > MaxMessageQueueLength.
+available({_, Status}, lease) ->
+    Status == available;
+
+available(Pid, MaxMessageQueueLength) when is_integer(MaxMessageQueueLength) ->
+    revolver_utils:message_queue_len(Pid) =< MaxMessageQueueLength.
 
 too_few_pids(PidTable, PidsCountOriginal, MinAliveRatio) ->
     table_size(PidTable) / PidsCountOriginal < MinAliveRatio.
 
-connect_internal(State = #state{ supervisor = Supervisor, pid_table = PidTable, reconnect_delay = ReconnectDelay }) ->
+connect_internal(State = #state{ supervisor = Supervisor, pid_table = PidTable, reconnect_delay = ReconnectDelay, max_message_queue_length = MaxMessageQueueLength }) ->
     case revolver_utils:child_pids(Supervisor) of
         {error, supervisor_not_running} ->
             ets:delete_all_objects(PidTable),
@@ -165,9 +208,9 @@ connect_internal(State = #state{ supervisor = Supervisor, pid_table = PidTable, 
             State#state{ connected = false };
         Pids ->
             PidsNew      = lists:filter(fun(E) -> ets:lookup(PidTable, E) =:= [] end, Pids),
-            PidsWithRefs = [{Pid, revolver_utils:monitor(Pid)}|| Pid <- PidsNew],
-            true         = ets:insert(PidTable, PidsWithRefs),
-            StateNew     = State#state{ last_pid =  ets:first(PidTable), pids_count_original = table_size(PidTable) },
+            PidTableRecords = pid_table_records(PidsNew, MaxMessageQueueLength),
+            true         = ets:insert(PidTable, PidTableRecords),
+            StateNew     = State#state{ last_pid = ets:first(PidTable), pids_count_original = table_size(PidTable) },
             case table_size(PidTable) of
                 0 ->
                     error_logger:error_msg(
@@ -179,6 +222,11 @@ connect_internal(State = #state{ supervisor = Supervisor, pid_table = PidTable, 
                     StateNew#state{ connected = true }
             end
     end.
+
+pid_table_records(Pids, lease) ->
+  lists:map(fun(Pid) -> revolver_utils:monitor(Pid), {{Pid, available}, undefined} end, Pids);
+pid_table_records(Pids, _) ->
+  lists:map(fun(Pid) -> revolver_utils:monitor(Pid), {Pid, undefined} end, Pids).
 
 schedule_reconnect(Delay) ->
     error_logger:error_msg("~p trying to reconnect in ~p ms.\n", [?MODULE, Delay]),

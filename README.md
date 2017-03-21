@@ -72,8 +72,39 @@ revolver:balance(sasl_sup, sasl_pool, Options).
 
 `min_alive_ratio`: If this portion of the workers are dead, a reload is triggered (default 1.0)
 `reconnect_delay`: when disconnected, the wait time between connection attempts (default 1000 ms)
-`max_message_queue_length`: maximum number of messages allowed in the inbox of each worker before revolver:pid/1 returns `{error, overload}` (default `undefined`)
+`max_message_queue_length`: maximum number of messages allowed for each workers before revolver:pid/1 returns `{error, overload}` (default `undefined`)
 `connect_at_start`: if you set up the workers after starting revolver, you can set this to false and then connect manually (default true)
+
+### lease-based balancing
+
+Revolver can be run in a `lease` mode by setting `max_message_queue_length` to `lease`. In this mode, each worker can only handle one job at a time, otherwise `{error, overload}` is returned.
+When in `lease` mode you can not get a pid of a worker but you pass a fun to `revolver:transaction/2` which in turn gets passed the pid:
+
+```erlang
+1>  application:start(sasl).
+ok
+[...]
+2> {ok, Pool} = revolver:balance(sasl_sup, sasl_pool, #{max_message_queue_length => lease}).
+
+=PROGRESS REPORT==== 21-Mar-2017::08:59:02 ===
+          supervisor: {local,sasl_pool_revolver_sub}
+             started: [{pid,<0.69.0>},
+                       {id,sasl_pool},
+                       {mfargs,
+                           {revolver,start_link,
+                               [sasl_sup,sasl_pool,
+                                #{max_message_queue_length => lease}]}},
+                       {restart_type,permanent},
+                       {shutdown,1000},
+                       {child_type,worker}]
+{ok,<0.68.0>}
+3> revolver:transaction(sasl_pool, fun(Pid) -> {here_is_the_pid, Pid} end).
+{here_is_the_pid,<0.63.0>}
+4> revolver:transaction(sasl_pool, fun(Pid) -> {here_is_the_pid, Pid} end).
+{here_is_the_pid,<0.65.0>}
+5> revolver:transaction(sasl_pool, fun(Pid) -> {here_is_the_pid, Pid} end).
+{here_is_the_pid,<0.63.0>}
+```  
 
 ### refreshing the pool
 
