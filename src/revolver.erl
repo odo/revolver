@@ -145,9 +145,9 @@ handle_cast(_, State) ->
 handle_info(connect, State) ->
     {noreply, connect_internal(State)};
 
-handle_info({'DOWN', _, _, Pid, _}, State = #state{supervisor = Supervisor, pid_table = PidTable, pids_count_original = PidsCountOriginal, min_alive_ratio = MinAliveRatio}) ->
+handle_info({'DOWN', _, _, Pid, _}, State = #state{supervisor = Supervisor, pid_table = PidTable, pids_count_original = PidsCountOriginal, min_alive_ratio = MinAliveRatio, max_message_queue_length = MaxMessageQueueLength}) ->
     error_logger:info_msg("~p: The process ~p (child of ~p) died.\n", [?MODULE, Pid, Supervisor]),
-    ets:delete(PidTable, Pid),
+    delete_pid(PidTable, Pid, MaxMessageQueueLength),
     StateNew =
     case too_few_pids(PidTable, PidsCountOriginal, MinAliveRatio) of
         true ->
@@ -161,6 +161,13 @@ handle_info({'DOWN', _, _, Pid, _}, State = #state{supervisor = Supervisor, pid_
 terminate(_Reason, _State) -> ok.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+delete_pid(PidTable, Pid, lease) ->
+    ets:delete(PidTable, {Pid, available}),
+    ets:delete(PidTable, {Pid, leased});
+delete_pid(PidTable, Pid, _) ->
+    ets:delete(PidTable, Pid).
+
 
 next_pid(PidTable, LastPid) ->
     case ets:next(PidTable, LastPid) of
