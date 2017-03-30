@@ -224,7 +224,7 @@ connect_internal({error, supervisor_not_running}, State = #state{ pid_table = Pi
     schedule_reconnect(ReconnectDelay),
     State#state{ connected = false };
 connect_internal(Pids, State = #state{ supervisor = Supervisor, pid_table = PidTable, reconnect_delay = ReconnectDelay, max_message_queue_length = MaxMessageQueueLength }) ->
-    PidsNew         = lists:filter(fun(E) -> ets:lookup(PidTable, E) =:= [] end, Pids),
+    PidsNew         = lists:filter(fun(Pid) -> lookup(PidTable, Pid, MaxMessageQueueLength) =:= [] end, Pids),
     PidTableRecords = pid_table_records(PidsNew, MaxMessageQueueLength),
     true            = ets:insert(PidTable, PidTableRecords),
     StateNew        = State#state{ last_pid = ets:first(PidTable), pids_count_original = table_size(PidTable) },
@@ -238,6 +238,11 @@ connect_internal(Pids, State = #state{ supervisor = Supervisor, pid_table = PidT
         _ ->
             StateNew#state{ connected = true }
       end.
+
+lookup(PidTable, Pid, lease) ->
+  ets:lookup(PidTable, {Pid, available}) ++ ets:lookup(PidTable, {Pid, leased});
+lookup(PidTable, Pid, _) ->
+  ets:lookup(PidTable, Pid).
 
 pid_table_records(Pids, lease) ->
     lists:map(fun(Pid) -> revolver_utils:monitor(Pid), {{Pid, available}, undefined} end, Pids);
