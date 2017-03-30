@@ -210,33 +210,32 @@ available(Pid, MaxMessageQueueLength) when is_integer(MaxMessageQueueLength) ->
 too_few_pids(PidTable, PidsCountOriginal, MinAliveRatio) ->
     table_size(PidTable) / PidsCountOriginal < MinAliveRatio.
 
-connect_internal(State = #state{ supervisor = Supervisor, pid_table = PidTable, reconnect_delay = ReconnectDelay, max_message_queue_length = MaxMessageQueueLength }) ->
-    case revolver_utils:child_pids(Supervisor) of
-        {error, supervisor_not_running} ->
-            ets:delete_all_objects(PidTable),
+connect_internal(State = #state{ supervisor = Supervisor}) ->
+    connect_internal(revolver_utils:child_pids(Supervisor), State).
+connect_internal({error, supervisor_not_running}, State = #state{ pid_table = PidTable, reconnect_delay = ReconnectDelay}) ->
+    ets:delete_all_objects(PidTable),
+    schedule_reconnect(ReconnectDelay),
+    State#state{ connected = false };
+connect_internal(Pids, State = #state{ supervisor = Supervisor, pid_table = PidTable, reconnect_delay = ReconnectDelay, max_message_queue_length = MaxMessageQueueLength }) ->
+    PidsNew         = lists:filter(fun(E) -> ets:lookup(PidTable, E) =:= [] end, Pids),
+    PidTableRecords = pid_table_records(PidsNew, MaxMessageQueueLength),
+    true            = ets:insert(PidTable, PidTableRecords),
+    StateNew        = State#state{ last_pid = ets:first(PidTable), pids_count_original = table_size(PidTable) },
+    case table_size(PidTable) of
+        0 ->
+            error_logger:error_msg(
+                "~p zero PIDs for ~p, disconnected.\n",
+                [?MODULE, Supervisor]),
             schedule_reconnect(ReconnectDelay),
-            State#state{ connected = false };
-        Pids ->
-            PidsNew      = lists:filter(fun(E) -> ets:lookup(PidTable, E) =:= [] end, Pids),
-            PidTableRecords = pid_table_records(PidsNew, MaxMessageQueueLength),
-            true         = ets:insert(PidTable, PidTableRecords),
-            StateNew     = State#state{ last_pid = ets:first(PidTable), pids_count_original = table_size(PidTable) },
-            case table_size(PidTable) of
-                0 ->
-                    error_logger:error_msg(
-                        "~p zero PIDs for ~p, disconnected.\n",
-                        [?MODULE, Supervisor]),
-                    schedule_reconnect(ReconnectDelay),
-                    StateNew#state{ connected = false };
-                _ ->
-                    StateNew#state{ connected = true }
-            end
-    end.
+            StateNew#state{ connected = false };
+        _ ->
+            StateNew#state{ connected = true }
+      end.
 
 pid_table_records(Pids, lease) ->
-  lists:map(fun(Pid) -> revolver_utils:monitor(Pid), {{Pid, available}, undefined} end, Pids);
+    lists:map(fun(Pid) -> revolver_utils:monitor(Pid), {{Pid, available}, undefined} end, Pids);
 pid_table_records(Pids, _) ->
-  lists:map(fun(Pid) -> revolver_utils:monitor(Pid), {Pid, undefined} end, Pids).
+    lists:map(fun(Pid) -> revolver_utils:monitor(Pid), {Pid, undefined} end, Pids).
 
 schedule_reconnect(Delay) ->
     error_logger:error_msg("~p trying to reconnect in ~p ms.\n", [?MODULE, Delay]),
