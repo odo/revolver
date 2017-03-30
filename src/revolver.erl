@@ -149,6 +149,9 @@ handle_cast(_, State) ->
 handle_info(connect, State) ->
     {noreply, connect_internal(State)};
 
+handle_info({pids, Pids}, State) ->
+    {noreply, connect_internal(Pids, State)};
+
 handle_info({'DOWN', _, _, Pid, _}, State = #state{supervisor = Supervisor, pid_table = PidTable, pids_count_original = PidsCountOriginal, min_alive_ratio = MinAliveRatio, max_message_queue_length = MaxMessageQueueLength}) ->
     error_logger:info_msg("~p: The process ~p (child of ~p) died.\n", [?MODULE, Pid, Supervisor]),
     delete_pid(PidTable, Pid, MaxMessageQueueLength),
@@ -156,7 +159,8 @@ handle_info({'DOWN', _, _, Pid, _}, State = #state{supervisor = Supervisor, pid_
     case too_few_pids(PidTable, PidsCountOriginal, MinAliveRatio) of
         true ->
             error_logger:warning_msg("~p: Reloading children from supervisor ~p.\n", [?MODULE, Supervisor]),
-            connect_internal(State);
+            connect_async(State),
+            State;
         false ->
             State
     end,
@@ -209,6 +213,9 @@ available(Pid, MaxMessageQueueLength) when is_integer(MaxMessageQueueLength) ->
 
 too_few_pids(PidTable, PidsCountOriginal, MinAliveRatio) ->
     table_size(PidTable) / PidsCountOriginal < MinAliveRatio.
+
+connect_async(#state{ supervisor = Supervisor}) ->
+  self() ! {pids, revolver_utils:child_pids(Supervisor)}.
 
 connect_internal(State = #state{ supervisor = Supervisor}) ->
     connect_internal(revolver_utils:child_pids(Supervisor), State).
