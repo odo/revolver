@@ -237,7 +237,8 @@ connect_internal(Pids, State = #state{ supervisor = Supervisor, pid_table = PidT
             schedule_reconnect(ReconnectDelay),
             StateNew#state{ connected = false };
         _ ->
-            StateNew#state{ connected = true }
+            LastPid = ets:first(PidTable),
+            StateNew#state{ connected = true, last_pid = LastPid }
       end.
 
 lookup(PidTable, Pid, lease) ->
