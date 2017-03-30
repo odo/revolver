@@ -155,16 +155,15 @@ handle_info({pids, Pids}, State) ->
 handle_info({'DOWN', _, _, Pid, _}, State = #state{supervisor = Supervisor, pid_table = PidTable, pids_count_original = PidsCountOriginal, min_alive_ratio = MinAliveRatio, max_message_queue_length = MaxMessageQueueLength}) ->
     error_logger:info_msg("~p: The process ~p (child of ~p) died.\n", [?MODULE, Pid, Supervisor]),
     delete_pid(PidTable, Pid, MaxMessageQueueLength),
-    StateNew =
+    Connected = (FirstPid = ets:first(PidTable)) =/= '$end_of_table',
     case too_few_pids(PidTable, PidsCountOriginal, MinAliveRatio) of
         true ->
-            error_logger:warning_msg("~p: Reloading children from supervisor ~p.\n", [?MODULE, Supervisor]),
-            connect_async(State),
-            State;
+            error_logger:warning_msg("~p: Reloading children from supervisor ~p (connected: ~p).\n", [?MODULE, Supervisor, Connected]),
+            connect_async(State);
         false ->
-            State
+            noop
     end,
-    {noreply, StateNew}.
+    {noreply, State#state{ connected = Connected, last_pid = FirstPid }}.
 
 terminate(_Reason, _State) -> ok.
 
