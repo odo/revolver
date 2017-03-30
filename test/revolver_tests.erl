@@ -14,6 +14,7 @@ revolver_test_() ->
         fun test_balance_with_queue_limit_one_overload/0,
         fun test_balance_with_queue_limit_all_overload/0,
         fun test_balance_with_lease/0,
+        fun test_reconnect_with_lease/0,
         fun test_no_supervisor_init/0,
         fun test_no_children_init/0,
         fun test_no_children/0,
@@ -121,6 +122,17 @@ test_balance_with_lease() ->
     {reply, {ok, 1}, LeaseState14}  = revolver:handle_call(lease, self(), LeaseState13),
     {reply, {error,overload}, LeaseState15}  = revolver:handle_call(lease, self(), LeaseState14),
     ok.
+
+  test_reconnect_with_lease() ->
+      Options = #{ max_message_queue_length => lease, min_alive_ratio => 1.0},
+      meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2] end),
+      {ok, StateInit} = revolver:init({supervisor, Options}),
+      {reply, ok, ReadyState} = revolver:handle_call(connect, me, StateInit),
+      {reply, {ok, 1}, LeaseState1}  = revolver:handle_call(lease, self(), ReadyState),
+      {reply, ok, ReconnectState} = revolver:handle_call(connect, me, LeaseState1),
+      {reply, {ok, 2}, LeaseState2}  = revolver:handle_call(lease, self(), ReconnectState),
+      {reply, {error, overload}, _}  = revolver:handle_call(lease, self(), LeaseState2),
+      ok.
 
 
 test_map() ->
