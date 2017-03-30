@@ -215,7 +215,8 @@ too_few_pids(PidTable, PidsCountOriginal, MinAliveRatio) ->
     table_size(PidTable) / PidsCountOriginal < MinAliveRatio.
 
 connect_async(#state{ supervisor = Supervisor}) ->
-  self() ! {pids, revolver_utils:child_pids(Supervisor)}.
+  Self = self(),
+  spawn_link(fun() -> Self ! {pids, revolver_utils:child_pids(Supervisor)} end).
 
 connect_internal(State = #state{ supervisor = Supervisor}) ->
     connect_internal(revolver_utils:child_pids(Supervisor), State).
