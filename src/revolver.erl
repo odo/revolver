@@ -39,7 +39,7 @@ transaction(PoolName, Fun) ->
       {ok, Pid} ->
         try
           Reply = Fun(Pid),
-          ok = gen_server:call(PoolName, {release, Pid}),
+          gen_server:cast(PoolName, {release, Pid}),
           Reply
         catch
           Class:Reason ->
@@ -132,6 +132,10 @@ handle_call(connect, _From, State) ->
             {error, not_connected}
     end,
     {reply, Reply, NewSate}.
+
+handle_cast({release, Pid}, State) ->
+  {reply, _, NextState} = handle_call({release, Pid}, internal, State),
+  {noreply, NextState};
 
 handle_cast(_, State) ->
     throw("not implemented"),
