@@ -35,8 +35,8 @@ pid(PoolName) ->
     gen_server:call(PoolName, pid).
 
 transaction(PoolName, Fun) ->
-    case gen_server:call(PoolName, lease) of
-      {ok, Pid} ->
+    case gen_server:call(PoolName, pid) of
+      Pid when is_pid(Pid) ->
         try
           Reply = Fun(Pid),
           gen_server:cast(PoolName, {release, Pid}),
@@ -90,18 +90,17 @@ maybe_connect(_) ->
 handle_call(pid, _From, State = #state{connected = false}) ->
     {reply, {error, disconnected}, State};
 handle_call(pid, _From, State = #state{ backend = Backend, backend_state = BackendState}) ->
-    {Reply, NextBackendState} = apply(Backend, next_pid, [BackendState]),
+    {Pid, NextBackendState} = apply(Backend, next_pid, [BackendState]),
     NextState = State#state{backend_state = NextBackendState},
-    {reply, Reply, NextState};
-
-% revolver is disconnected
-handle_call(lease, _From, State = #state{connected = false}) ->
-    {reply, {error, disconnected}, State};
-% no limit on the message queue is defined
-handle_call(lease, _From, State = #state{ backend = Backend, backend_state = BackendState}) ->
-  {Reply, NextBackendState} = apply(Backend, next_pid, [BackendState]),
-  NextState = State#state{backend_state = NextBackendState},
-  {reply, Reply, NextState};
+    % under high load, the pid might have died in the meantime
+    case revolver_utils:alive(Pid) of
+      true ->
+        {reply, Pid, NextState};
+      false ->
+        {ok, NextBackendState2} = apply(Backend, pid_down, [Pid, NextBackendState]),
+        NextState2 = NextState#state{backend_state = NextBackendState2},
+        handle_call(pid, internal, NextState2)
+    end;
 
 handle_call({release, Pid}, _From, State = #state{ backend = Backend, backend_state = BackendState}) ->
   {Reply, NextBackendState} =

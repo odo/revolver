@@ -28,7 +28,7 @@ next_pid(State = #state{pids_available = []}) ->
   {{error, overload}, State};
 next_pid(State = #state{pids_available = [NextPid | RemainingPids], pids_leased = PidsLeased}) ->
   NextState = State#state{ pids_available = RemainingPids, pids_leased = sets:add_element(NextPid, PidsLeased) },
-  {{ok, NextPid}, NextState}.
+  {NextPid, NextState}.
 
 release(Pid, State = #state{pids_available = PidsAvailable, pids_leased = PidsLeased}) ->
   case sets:is_element(Pid, PidsLeased) of
