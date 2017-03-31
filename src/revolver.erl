@@ -93,7 +93,7 @@ handle_call(pid, _From, State = #state{ backend = Backend, backend_state = Backe
     {Pid, NextBackendState} = apply(Backend, next_pid, [BackendState]),
     NextState = State#state{backend_state = NextBackendState},
     % under high load, the pid might have died in the meantime
-    case is_pid(Pid) and not revolver_utils:alive(Pid) of
+    case is_pid(Pid) andalso not revolver_utils:alive(Pid) of
       true ->
         {ok, NextBackendState2} = apply(Backend, pid_down, [Pid, NextBackendState]),
         NextState2 = NextState#state{backend_state = NextBackendState2},
