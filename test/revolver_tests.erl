@@ -128,9 +128,9 @@ test_balance_with_lease() ->
       meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2] end),
       {ok, StateInit} = revolver:init({supervisor, Options}),
       {reply, ok, ReadyState} = revolver:handle_call(connect, me, StateInit),
-      {reply, {ok, 1}, LeaseState1}  = revolver:handle_call(lease, self(), ReadyState),
+      {reply, {ok, 2}, LeaseState1}  = revolver:handle_call(lease, self(), ReadyState),
       {reply, ok, ReconnectState} = revolver:handle_call(connect, me, LeaseState1),
-      {reply, {ok, 2}, LeaseState2}  = revolver:handle_call(lease, self(), ReconnectState),
+      {reply, {ok, 1}, LeaseState2}  = revolver:handle_call(lease, self(), ReconnectState),
       {reply, {error, overload}, _}  = revolver:handle_call(lease, self(), LeaseState2),
       ok.
 
@@ -162,11 +162,7 @@ test_no_children() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [] end),
     {noreply, StateDown1} = revolver:handle_info({'DOWN', x, x, 1, x}, StateReady),
     StateDown2 = receive_and_handle(StateDown1),
-    {reply, 2, _}         = revolver:handle_call(pid, me, StateDown2),
-    {noreply, StateDown3} = revolver:handle_info({'DOWN', x, x, 2, x}, StateDown2),
-    StateDown4 = receive_and_handle(StateDown3),
-    {reply, Reply, _}     = revolver:handle_call(pid, me, StateDown4),
-    ?assertEqual({error, disconnected}, Reply).
+    {reply, {error, disconnected}, _} = revolver:handle_call(pid, me, StateDown2).
 
 test_no_supervisor() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2] end),
