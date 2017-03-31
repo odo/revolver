@@ -104,7 +104,13 @@ handle_call(lease, _From, State = #state{ backend = Backend, backend_state = Bac
   {reply, Reply, NextState};
 
 handle_call({release, Pid}, _From, State = #state{ backend = Backend, backend_state = BackendState}) ->
-  {Reply, NextBackendState} = apply(Backend, release, [Pid, BackendState]),
+  {Reply, NextBackendState} =
+  case revolver_utils:alive(Pid) of
+    true ->
+      apply(Backend, release,  [Pid, BackendState]);
+    false ->
+      apply(Backend, pid_down, [Pid, BackendState])
+  end,
   NextState = State#state{backend_state = NextBackendState},
   {reply, Reply, NextState};
 

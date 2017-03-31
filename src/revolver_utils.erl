@@ -1,6 +1,6 @@
 -module(revolver_utils).
 
--export([monitor/1, child_pids/1, message_queue_len/1, supervisor_name/1]).
+-export([monitor/1, child_pids/1, message_queue_len/1, supervisor_name/1, alive/1]).
 
 monitor(Pid) ->
     erlang:monitor(process, Pid).
@@ -24,10 +24,10 @@ message_queue_len(Pid) ->
 
 alive(undefined) ->
     false;
-alive(Supervisor) when is_atom(Supervisor) ->
-    alive(erlang:whereis(Supervisor));
-alive(Supervisor) when is_pid(Supervisor) ->
-    erlang:is_process_alive(Supervisor).
+alive(Process) when is_atom(Process) ->
+    alive(erlang:whereis(Process));
+alive(Process) when is_pid(Process) ->
+    erlang:is_process_alive(Process).
 
 supervisor_name(Name) ->
     postfix_atom(Name, "_revolver_sub").
