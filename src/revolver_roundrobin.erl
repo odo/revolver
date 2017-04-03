@@ -81,4 +81,4 @@ available(Pid, MaxMessageQueueLength) when is_integer(MaxMessageQueueLength) ->
     revolver_utils:message_queue_len(Pid) =< MaxMessageQueueLength.
 
 pid_table_records(Pids) ->
-    lists:map(fun(Pid) -> revolver_utils:monitor(Pid), {Pid, undefined} end, Pids).
+    lists:map(fun(Pid) -> {Pid, undefined} end, Pids).

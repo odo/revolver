@@ -178,6 +178,7 @@ connect_internal({error, supervisor_not_running}, State = #state{ reconnect_dela
     schedule_reconnect(ReconnectDelay),
     State#state{ connected = false, backend_state = NextBackendState };
 connect_internal(Pids, State = #state{ supervisor = Supervisor, reconnect_delay = ReconnectDelay, backend = Backend, backend_state = BackendState }) ->
+    [revolver_utils:monitor(Pid) || Pid <- Pids], 
     {ok, NextBackendState} = apply(Backend, new_pids, [Pids, BackendState]),
     case length(Pids) of
         0 ->
