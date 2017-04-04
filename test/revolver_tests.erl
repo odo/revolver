@@ -28,7 +28,7 @@ test_setup() ->
     application:start(sasl),
     meck:new(revolver_utils, [unstick, passthrough]),
     meck:expect(revolver_utils, alive, fun(_) -> true end),
-    meck:expect(revolver_utils, monitor, fun(_) -> some_ref end).
+    meck:expect(revolver_utils, monitor, fun(_) -> noop end).
 
 test_teardown(_) ->
     meck:unload(revolver_utils).
@@ -53,8 +53,11 @@ test_balance_with_queue_limit_no_overload() ->
     Options = #{ max_message_queue_length => 10 },
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),
     meck:expect(revolver_utils, message_queue_len, fun(_) -> 0 end),
+    Self = self(),
+    meck:expect(revolver_utils, monitor, fun(Pid) -> Self ! {monitor, Pid} end),
     {ok, StateInit} = revolver:init({supervisor, Options}),
     {reply, ok, ReadyState} = revolver:handle_call(connect, me, StateInit),
+    ?assertEqual([3, 2, 1], monitors()),
     {reply, Pid1, State1}  = revolver:handle_call(pid, me, ReadyState),
     ?assertEqual(3, Pid1),
     {reply, Pid2, State2}  = revolver:handle_call(pid, me, State1),
@@ -102,10 +105,13 @@ test_balance_with_queue_limit_all_overload() ->
 
 
 test_balance_with_lease() ->
+    Self = self(),
+    meck:expect(revolver_utils, monitor, fun(Pid) -> Self ! {monitor, Pid} end),
     Options = #{ max_message_queue_length => lease, min_alive_ratio => 0.0},
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),
     {ok, StateInit} = revolver:init({supervisor, Options}),
     {reply, ok, ReadyState} = revolver:handle_call(connect, me, StateInit),
+    ?assertEqual([1, 2, 3], monitors()),
     {reply, Pid1, LeaseState1}  = revolver:handle_call(pid, self(), ReadyState),
     {reply, Pid2, LeaseState2}  = revolver:handle_call(pid, self(), LeaseState1),
     {reply, Pid3, LeaseState3}  = revolver:handle_call(pid, self(), LeaseState2),
@@ -122,6 +128,8 @@ test_balance_with_lease() ->
     {reply, ok, LeaseState13}  = revolver:handle_call({release, 2}, self(), LeaseState12),
     {reply, 1, LeaseState14}  = revolver:handle_call(pid, self(), LeaseState13),
     {reply, {error,overload}, LeaseState15}  = revolver:handle_call(pid, self(), LeaseState14),
+    {reply, ok, _} = revolver:handle_call(connect, me, LeaseState15),
+    ?assertEqual([2], monitors()),
     ok.
 
   test_reconnect_with_lease() ->
@@ -177,9 +185,12 @@ test_no_supervisor() ->
     ?assertEqual({error, disconnected}, Reply).
 
 test_exit() ->
+    Self = self(),
+    meck:expect(revolver_utils, monitor, fun(Pid) -> Self ! {monitor, Pid} end),
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),
     {ok, StateInit}       = revolver:init({supervisor, default_options()}),
     {reply, ok, StateReady} = revolver:handle_call(connect, me, StateInit),
+    ?assertEqual([3, 2, 1], monitors()),
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 3] end),
     {noreply, StateDown}   = revolver:handle_info({'DOWN', x, x, 2, x}, StateReady),
     StateReconnect = receive_and_handle(StateDown),
@@ -194,8 +205,11 @@ test_exit() ->
     StateReconnect2 = receive_and_handle(StateDown2),
     {reply, Pid4, State4}  = revolver:handle_call(pid, x, StateReconnect2),
     ?assertEqual(1, Pid4),
-    {reply, Pid5, _State5} = revolver:handle_call(pid, x, State4),
-    ?assertEqual(1, Pid5).
+    {reply, Pid5, State5} = revolver:handle_call(pid, x, State4),
+    ?assertEqual(1, Pid5),
+    meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2, 3] end),
+    {reply, ok, _} = revolver:handle_call(connect, me, State5),
+    ?assertEqual([3, 2], monitors()).
 
 receive_and_handle(State) ->
     receive
@@ -203,5 +217,15 @@ receive_and_handle(State) ->
         {noreply, NewState} = revolver:handle_info(Message, State),
         NewState
     end.
+
+monitors() ->
+  monitors([]).
+monitors(Pids) ->
+  receive
+    {monitor, Pid} ->
+        monitors([Pid | Pids])
+  after
+    10 -> Pids
+end.
 
 -endif.

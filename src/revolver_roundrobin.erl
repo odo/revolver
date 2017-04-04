@@ -36,11 +36,12 @@ delete_all_pids(State = #state{pid_table = PidTable}) ->
   {ok, State}.
 
 new_pids(Pids, State = #state{pid_table = PidTable}) ->
+  NewPids = lists:filter( fun(Pid) -> not ets:member(PidTable, Pid) end, Pids),
   ets:delete_all_objects(PidTable),
   PidTableRecords = pid_table_records(Pids),
   true            = ets:insert(PidTable, PidTableRecords),
   NextState       = State#state{ last_pid = ets:first(PidTable)},
-  {ok, NextState}.
+  {ok, NewPids, NextState}.
 
 pid_down(Pid, State = #state{pid_table = PidTable}) ->
   ets:delete(PidTable, Pid),

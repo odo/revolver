@@ -17,12 +17,15 @@ init_state(lease) ->
 delete_all_pids(State) ->
   {ok, State#state{pids_available = [], pids_leased = sets:mew()}}.
 
-new_pids(Pids, State = #state{ pids_leased = PidsLeased}) ->
+new_pids(Pids, State = #state{ pids_leased = PidsLeased, pids_available = PidsAvailable}) ->
   PidsSet = sets:from_list(Pids),
+
+  NewPids =sets:to_list(sets:subtract(PidsSet, sets:union(PidsLeased, sets:from_list(PidsAvailable)))),
+
   NextPidsLeased    = sets:intersection(PidsSet, PidsLeased),
   NextPidsAvailable = sets:to_list(sets:subtract(PidsSet, NextPidsLeased)),
   NextState         = State#state{ pids_available = NextPidsAvailable, pids_leased = NextPidsLeased },
-  {ok, NextState}.
+  {ok, NewPids, NextState}.
 
 next_pid(State = #state{pids_available = []}) ->
   {{error, overload}, State};
