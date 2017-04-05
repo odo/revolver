@@ -20,7 +20,8 @@ revolver_test_() ->
         fun test_no_children/0,
         fun test_no_supervisor/0,
         fun test_map/0,
-        fun test_exit/0
+        fun test_exit/0,
+        fun test_reload_every/0
       ]}
     ].
 
@@ -173,6 +174,17 @@ test_no_children() ->
     StateDown2 = receive_and_handle(StateDown1),
     {reply, {error, disconnected}, _} = revolver:handle_call(pid, me, StateDown2).
 
+test_reload_every() ->
+    meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2] end),
+    {ok, StateInit} = revolver:init({supervisor, #{ min_alive_ratio => 1.0, reconnect_delay => 1000, connect_at_start => false, reload_every => 2}}),
+    {reply, ok, StateReady} = revolver:handle_call(connect, me, StateInit),
+    {reply, 1, _}         = revolver:handle_call(pid, me, StateReady),
+    meck:expect(revolver_utils, child_pids, fun(_) -> [] end),
+    {noreply, StateDown1} = revolver:handle_info({'DOWN', x, x, 1, x}, StateReady),
+    {error, timeout} = receive_and_handle(StateDown1),
+    {noreply, StateDown2} = revolver:handle_info({'DOWN', x, x, 2, x}, StateDown1),
+    ?assert({error, timeout} =/= receive_and_handle(StateDown2)).
+
 test_no_supervisor() ->
     meck:expect(revolver_utils, child_pids, fun(_) -> [1, 2] end),
     {ok, StateInit}       = revolver:init({supervisor, default_options()}),
@@ -216,6 +228,8 @@ receive_and_handle(State) ->
       Message ->
         {noreply, NewState} = revolver:handle_info(Message, State),
         NewState
+      after 10 ->
+        {error, timeout}
     end.
 
 monitors() ->

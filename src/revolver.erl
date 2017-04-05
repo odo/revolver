@@ -9,6 +9,7 @@
 -define(DEFAULRECONNECTDELAY,  1000). % ms
 -define(DEFAULTCONNECTATSTART, true).
 -define(DEFAULTMAXMESSAGEQUEUELENGTH, undefined).
+-define(DEFAULTRELOADEVERY, 1).
 
 -type sup_ref()  :: {atom(), atom()}.
 
@@ -19,6 +20,8 @@
     supervisor :: sup_ref(),
     pids_count_original :: integer(),
     min_alive_ratio :: float(),
+    reload_every :: integer(),
+    down_count :: integer(),
     reconnect_delay :: integer()
     }).
 
@@ -58,6 +61,7 @@ connect(PoolName) ->
 
 init({Supervisor, Options}) ->
     MinAliveRatio         = maps:get(min_alive_ratio,  Options, ?DEFAULTMINALIVERATIO),
+    ReloadEvery           = maps:get(reload_every,     Options, ?DEFAULTRELOADEVERY),
     ReconnectDelay        = maps:get(reconnect_delay,  Options, ?DEFAULRECONNECTDELAY),
     ConnectAtStart        = maps:get(connect_at_start, Options, ?DEFAULTCONNECTATSTART),
     MaxMessageQueueLength = maps:get(max_message_queue_length, Options, ?DEFAULTMAXMESSAGEQUEUELENGTH),
@@ -76,6 +80,8 @@ init({Supervisor, Options}) ->
         supervisor               = Supervisor,
         pids_count_original      = undefined,
         min_alive_ratio          = MinAliveRatio,
+        reload_every             = ReloadEvery,
+        down_count               = 0,
         reconnect_delay          = ReconnectDelay
     },
     maybe_connect(ConnectAtStart),
@@ -146,19 +152,20 @@ handle_info(connect, State) ->
 handle_info({pids, Pids}, State) ->
     {noreply, connect_internal(Pids, State)};
 
-handle_info({'DOWN', _, _, Pid, Reason}, State = #state{supervisor = Supervisor, pids_count_original = PidsCountOriginal, backend = Backend, backend_state = BackendState, min_alive_ratio = MinAliveRatio }) ->
+handle_info({'DOWN', _, _, Pid, Reason}, State = #state{supervisor = Supervisor, pids_count_original = PidsCountOriginal, backend = Backend, backend_state = BackendState, min_alive_ratio = MinAliveRatio, down_count = DownCount , reload_every = ReloadEvery}) ->
     error_logger:info_msg("~p: The process ~p (child of ~p) died for reason ~p.\n", [?MODULE, Pid, Supervisor, Reason]),
     {ok, NextBackendState} = apply(Backend, pid_down, [Pid, BackendState]),
     {{ok, Pids}, NextBackendState2} = apply(Backend, pids, [NextBackendState]),
     Connected = Pids =/= [],
-    case too_few_pids(Pids, PidsCountOriginal, MinAliveRatio) of
+    NewDownCount = DownCount + 1,
+    case ((NewDownCount rem ReloadEvery) == 0) andalso  too_few_pids(Pids, PidsCountOriginal, MinAliveRatio) of
         true ->
             error_logger:warning_msg("~p: Reloading children from supervisor ~p (connected: ~p).\n", [?MODULE, Supervisor, Connected]),
             connect_async(State);
         false ->
             noop
     end,
-    {noreply, State#state{ connected = Connected, backend_state = NextBackendState2 }}.
+    {noreply, State#state{ connected = Connected, backend_state = NextBackendState2, down_count = NewDownCount }}.
 
 terminate(_Reason, _State) -> ok.
 
