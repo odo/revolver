@@ -146,8 +146,8 @@ handle_info(connect, State) ->
 handle_info({pids, Pids}, State) ->
     {noreply, connect_internal(Pids, State)};
 
-handle_info({'DOWN', _, _, Pid, _}, State = #state{supervisor = Supervisor, pids_count_original = PidsCountOriginal, backend = Backend, backend_state = BackendState, min_alive_ratio = MinAliveRatio }) ->
-    error_logger:info_msg("~p: The process ~p (child of ~p) died.\n", [?MODULE, Pid, Supervisor]),
+handle_info({'DOWN', _, _, Pid, Reason}, State = #state{supervisor = Supervisor, pids_count_original = PidsCountOriginal, backend = Backend, backend_state = BackendState, min_alive_ratio = MinAliveRatio }) ->
+    error_logger:info_msg("~p: The process ~p (child of ~p) died for reason ~p.\n", [?MODULE, Pid, Supervisor, Reason]),
     {ok, NextBackendState} = apply(Backend, pid_down, [Pid, BackendState]),
     {{ok, Pids}, NextBackendState2} = apply(Backend, pids, [NextBackendState]),
     Connected = Pids =/= [],
