@@ -3,7 +3,7 @@
 -behaviour (gen_server).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([balance/2, balance/3, map/2, start_link/3, pid/1, connect/1, transaction/2]).
+-export([balance/2, balance/3, map/2, start_link/3, pid/1, release/2, connect/1, transaction/2, transaction/3]).
 
 -define(DEFAULTMINALIVERATIO,  1.0).
 -define(DEFAULRECONNECTDELAY,  1000). % ms
@@ -37,16 +37,27 @@ balance(Supervisor, BalancerName, Options) ->
 pid(PoolName) ->
     gen_server:call(PoolName, pid).
 
+release(PoolName, Pid) ->
+  gen_server:cast(PoolName, {release, Pid}).
+
 transaction(PoolName, Fun) ->
-    case gen_server:call(PoolName, pid) of
+  transaction(PoolName, Fun, false).
+
+transaction(PoolName, Fun, KillOnError) ->
+    case ?MODULE:pid(PoolName) of
       Pid when is_pid(Pid) ->
         try
           Reply = Fun(Pid),
-          gen_server:cast(PoolName, {release, Pid}),
+          ok = ?MODULE:release(PoolName, Pid),
           Reply
         catch
           Class:Reason ->
-            ok = gen_server:call(PoolName, {release, Pid}),
+            case KillOnError of
+              false ->
+                ok = ?MODULE:release(PoolName, Pid);
+              true ->
+                dead = kill(Pid)
+            end,
             erlang:raise(Class, Reason, erlang:get_stacktrace())
           end;
       {error, Error} ->
@@ -201,3 +212,16 @@ connect_internal(Pids, State = #state{ supervisor = Supervisor, reconnect_delay 
 schedule_reconnect(Delay) ->
     error_logger:error_msg("~p trying to reconnect in ~p ms.\n", [?MODULE, Delay]),
     erlang:send_after(Delay, self(), connect).
+
+kill(Pid) ->
+  kill(Pid, normal).
+
+kill(Pid, Reason) ->
+  case process_info(Pid) == undefined of
+    true ->
+      dead;
+    false ->
+      exit(Pid, Reason),
+      timer:sleep(10),
+      kill(Pid, kill)
+  end.

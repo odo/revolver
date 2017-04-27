@@ -21,7 +21,10 @@ revolver_test_() ->
         fun test_no_supervisor/0,
         fun test_map/0,
         fun test_exit/0,
-        fun test_reload_every/0
+        fun test_reload_every/0,
+        fun test_transaction/0,
+        fun test_transaction_with_error/0,
+        fun test_transaction_with_error_with_kill_on_error/0
       ]}
     ].
 
@@ -223,6 +226,56 @@ test_exit() ->
     {reply, ok, _} = revolver:handle_call(connect, me, State5),
     ?assertEqual([3, 2], monitors()).
 
+test_transaction() ->
+    TestProcess = self(),
+    DummyPid = spawn(fun() -> timer:sleep(100) end),
+    meck:expect(revolver, pid, fun(pool_name) -> DummyPid end),
+    meck:expect(revolver, release, fun(pool_name, Pid) -> TestProcess ! {released, Pid}, ok end),
+    Result = revolver:transaction(pool_name, fun(DummyPid) -> transaction end),
+    ?assertEqual(Result, transaction),
+    assert_receive({released, DummyPid}),
+    alive(DummyPid).
+
+test_transaction_with_error() ->
+    TestProcess = self(),
+    DummyPid = spawn(fun() -> timer:sleep(100) end),
+    meck:expect(revolver, pid, fun(pool_name) -> DummyPid end),
+    meck:expect(revolver, release, fun(pool_name, Pid) -> TestProcess ! {released, Pid}, ok end),
+    Reply =
+    try
+      revolver:transaction(pool_name, fun(_) -> throw(tantrum) end),
+      false
+    catch
+      throw:tantrum ->
+        true
+    end,
+    ?assert(Reply),
+    assert_receive({released, DummyPid}),
+    ?assert(alive(DummyPid)).
+
+test_transaction_with_error_with_kill_on_error() ->
+    TestProcess = self(),
+    DummyPid = spawn(fun() -> timer:sleep(100) end),
+    meck:expect(revolver, pid, fun(pool_name) -> DummyPid end),
+    meck:expect(revolver, release, fun(pool_name, Pid) -> TestProcess ! {released, Pid}, ok end),
+    Reply =
+    try
+      revolver:transaction(pool_name, fun(_) -> throw(tantrum) end, true),
+      false
+    catch
+      throw:tantrum ->
+        true
+    end,
+    ?assert(Reply),
+    ?assertEqual(false, alive(DummyPid)).
+
+assert_receive(Message) ->
+    receive
+      Message -> ?assert(true)
+    after 100 ->
+      ?assertEqual(true, timeout)
+end.
+
 receive_and_handle(State) ->
     receive
       Message ->
@@ -241,5 +294,8 @@ monitors(Pids) ->
   after
     10 -> Pids
 end.
+
+alive(Pid) ->
+  process_info(Pid) =/= undefined.
 
 -endif.
