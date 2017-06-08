@@ -36,7 +36,7 @@ next_pid(State = #state{pids_available = [NextPid | RemainingPids], pids_leased 
 release(Pid, State = #state{pids_available = PidsAvailable, pids_leased = PidsLeased}) ->
   case sets:is_element(Pid, PidsLeased) of
     true ->
-      NextState = State#state{pids_available = [Pid | PidsAvailable], pids_leased = sets:del_element(Pid, PidsLeased)},
+      NextState = State#state{pids_available = PidsAvailable ++ [Pid], pids_leased = sets:del_element(Pid, PidsLeased)},
       {ok, NextState};
     false ->
       {ok, State}
