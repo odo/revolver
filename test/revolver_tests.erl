@@ -231,7 +231,7 @@ test_transaction() ->
     DummyPid = spawn(fun() -> timer:sleep(100) end),
     meck:expect(revolver, pid, fun(pool_name) -> DummyPid end),
     meck:expect(revolver, release, fun(pool_name, Pid) -> TestProcess ! {released, Pid}, ok end),
-    Result = revolver:transaction(pool_name, fun(DummyPid) -> transaction end),
+    Result = revolver:transaction(pool_name, fun(_) -> transaction end),
     ?assertEqual(Result, transaction),
     assert_receive({released, DummyPid}),
     alive(DummyPid).
