@@ -3,7 +3,7 @@
 -behaviour (gen_server).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([balance/2, balance/3, map/2, start_link/3, pid/1, release/2, connect/1, transaction/2, transaction/3]).
+-export([balance/2, balance/3, map/2, start_link/3, pid/1, pid_down/2, release/2, connect/1, transaction/2, transaction/3]).
 
 -define(DEFAULTMINALIVERATIO,  1.0).
 -define(DEFAULRECONNECTDELAY,  1000). % ms
@@ -36,6 +36,9 @@ balance(Supervisor, BalancerName, Options) ->
 
 pid(PoolName) ->
     gen_server:call(PoolName, pid).
+
+pid_down(PoolName, Pid) ->
+  gen_server:call(PoolName, {pid_down, Pid}).
 
 release(PoolName, Pid) ->
   gen_server:cast(PoolName, {release, Pid}).
@@ -118,6 +121,11 @@ handle_call(pid, _From, State = #state{ backend = Backend, backend_state = Backe
       false ->
         {reply, Pid, NextState}
     end;
+
+handle_call({pid_down, Pid}, _From, State = #state{ backend = Backend, backend_state = BackendState}) ->
+  {Reply, NextBackendState} = apply(Backend, pid_down, [Pid, BackendState]),
+  NextState = State#state{backend_state = NextBackendState},
+  {reply, Reply, NextState};
 
 handle_call({release, Pid}, _From, State = #state{ backend = Backend, backend_state = BackendState}) ->
   {Reply, NextBackendState} =
