@@ -11,6 +11,16 @@
 -define(DEFAULTMAXMESSAGEQUEUELENGTH, undefined).
 -define(DEFAULTRELOADEVERY, 1).
 
+% stacktrace
+
+-ifdef(OTP_RELEASE). %% this implies 21 or higher
+-define(EXCEPTION(Class, Reason, Stacktrace), Class:Reason:Stacktrace).
+-define(GET_STACK(Stacktrace), Stacktrace).
+-else.
+-define(EXCEPTION(Class, Reason, _), Class:Reason).
+-define(GET_STACK(_), erlang:get_stacktrace()).
+-endif.
+
 -type sup_ref()  :: {atom(), atom()}.
 
 -record(state, {
@@ -51,14 +61,14 @@ transaction(PoolName, Fun, KillOnError) ->
           ok = ?MODULE:release(PoolName, Pid),
           Reply
         catch
-          Class:Reason ->
+          ?EXCEPTION(Class, Reason, Stacktrace) ->
             case KillOnError of
               false ->
                 ok = ?MODULE:release(PoolName, Pid);
               true ->
                 dead = kill(Pid)
             end,
-            erlang:raise(Class, Reason, erlang:get_stacktrace())
+            erlang:raise(Class, Reason, ?GET_STACK(Stacktrace))
           end;
       {error, Error} ->
         {error, Error}
