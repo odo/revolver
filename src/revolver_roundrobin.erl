@@ -50,9 +50,11 @@ pid_down(Pid, State = #state{pid_table = PidTable}) ->
 % internal functions
 
 next_pid(PidTable, LastPid) ->
-    case ets:next(PidTable, LastPid) of
+    case catch ets:next(PidTable, LastPid) of
         '$end_of_table' ->
-            ets:first(PidTable);
+          ets:first(PidTable);
+        {'EXIT', {badarg, _}} ->
+          ets:first(PidTable);
         Value ->
             Value
     end.
